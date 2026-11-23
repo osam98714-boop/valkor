@@ -1,64 +1,28 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
-
-interface ThemeContextType {
-  theme: Theme;
-  toggleTheme?: () => void;
-  switchable: boolean;
-}
-
+export type Theme = "gold-light" | "gold-dark" | "electric-dark" | "crimson-dark";
+type ThemeContextType = { theme: Theme; setTheme: (theme: Theme) => void };
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const validThemes: Theme[] = ["gold-light", "gold-dark", "electric-dark", "crimson-dark"];
 
-interface ThemeProviderProps {
-  children: React.ReactNode;
-  defaultTheme?: Theme;
-  switchable?: boolean;
-}
-
-export function ThemeProvider({
-  children,
-  defaultTheme = "light",
-  switchable = false,
-}: ThemeProviderProps) {
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (switchable) {
-      const stored = localStorage.getItem("theme");
-      return (stored as Theme) || defaultTheme;
-    }
-    return defaultTheme;
+export function ThemeProvider({ children, defaultTheme = "gold-light" }: { children: React.ReactNode; defaultTheme?: Theme }) {
+  const [theme, setThemeState] = useState<Theme>(() => {
+    try {
+      const saved = localStorage.getItem("valkor-theme") as Theme | null;
+      return saved && validThemes.includes(saved) ? saved : defaultTheme;
+    } catch { return defaultTheme; }
   });
-
+  const setTheme = (next: Theme) => {
+    if (validThemes.includes(next)) setThemeState(next);
+  };
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
-
-    if (switchable) {
-      localStorage.setItem("theme", theme);
-    }
-  }, [theme, switchable]);
-
-  const toggleTheme = switchable
-    ? () => {
-        setTheme(prev => (prev === "light" ? "dark" : "light"));
-      }
-    : undefined;
-
-  return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, switchable }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+    document.documentElement.dataset.theme = theme;
+    try { localStorage.setItem("valkor-theme", theme); } catch { /* storage can be unavailable */ }
+  }, [theme]);
+  return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;
 }
-
 export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error("useTheme must be used within ThemeProvider");
-  }
-  return context;
+  const value = useContext(ThemeContext);
+  if (!value) throw new Error("useTheme must be used within ThemeProvider");
+  return value;
 }
