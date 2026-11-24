@@ -7,7 +7,6 @@ import { registerOAuthRoutes } from "./oauth";
 import { publicPlatformScript } from "./publicConfig";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
 
 type CreateAppOptions = {
   /** HTTP server is required only when starting Vite's development middleware. */
@@ -49,8 +48,11 @@ export async function createApp(options: CreateAppOptions = {}) {
     if (!options.server) {
       throw new Error("An HTTP server is required for the Vite development middleware.");
     }
+    const viteModulePath = "./vite";
+    const { setupVite } = await import(viteModulePath);
     await setupVite(app, options.server);
   } else if (options.serveFrontend !== false) {
+    const { serveStatic } = await import("./staticFrontend");
     serveStatic(app);
   }
 
