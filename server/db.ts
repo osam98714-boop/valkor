@@ -10,9 +10,10 @@ let _db: ReturnType<typeof drizzle> | null = null;
 // Create the client lazily so local checks can run without a database URL.
 // Neon pooled URLs are supported; prepared statements are disabled for pooler compatibility.
 export async function getDb() {
-  if (!_db && process.env.DATABASE_URL) {
+  const connectionString = ENV.databaseUrl;
+  if (!_db && connectionString) {
     try {
-      const client = postgres(process.env.DATABASE_URL, {
+      const client = postgres(connectionString, {
         ssl: "require",
         max: 1,
         prepare: false,

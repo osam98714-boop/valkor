@@ -26,7 +26,7 @@ const seedSettings: Record<string, string> = {
 
 async function main() {
   const db = await getDb();
-  if (!db) throw new Error("DATABASE_URL غير متاح؛ تعذر تهيئة بيانات المتجر");
+  if (!db) throw new Error("NEON_DATABASE_URL أو DATABASE_URL صالح لـPostgreSQL غير متاح؛ تعذر تهيئة بيانات المتجر");
 
   try {
     for (let index = 0; index < seedCategories.length; index++) {
