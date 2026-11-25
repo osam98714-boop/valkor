@@ -11,9 +11,9 @@ export const CSRF_COOKIE = "vlkr_csrf";
 export const SESSION_SECONDS = 60 * 60 * 12;
 export const ALL_PERMISSIONS = [
   "dashboard.read", "products.read", "products.write", "products.delete",
-  "categories.write", "orders.read", "orders.write", "orders.delete",
+  "categories.read", "categories.write", "orders.read", "orders.write", "orders.delete",
   "customers.read", "communities.write", "currencies.write", "content.write",
-  "settings.write", "admins.write", "audit.read", "maintenance.write",
+  "settings.write", "homepage.write", "admins.write", "audit.read", "audit.delete", "maintenance.write",
 ] as const;
 export type Permission = (typeof ALL_PERMISSIONS)[number];
 
@@ -46,9 +46,9 @@ export function rolePermissions(admin: Pick<AdminAccount, "role" | "permissions"
   if (admin.role === "super_admin") return [...ALL_PERMISSIONS];
   if (admin.permissions !== null) return admin.permissions ?? [];
   const roles: Record<string, string[]> = {
-    product_manager: ["dashboard.read", "products.read", "products.write", "products.delete", "categories.write"],
-    order_manager: ["dashboard.read", "orders.read", "orders.write", "customers.read"],
-    content_manager: ["dashboard.read", "products.read", "content.write", "communities.write"],
+    product_manager: ["dashboard.read", "products.read", "products.write", "products.delete", "categories.read", "categories.write"],
+    order_manager: ["dashboard.read", "orders.read", "orders.write", "orders.delete", "customers.read"],
+    content_manager: ["dashboard.read", "products.read", "categories.read", "categories.write", "homepage.write", "content.write", "communities.write"],
     custom: [],
   };
   return roles[admin.role] ?? [];

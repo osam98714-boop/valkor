@@ -6,6 +6,7 @@ import { categories, communityListings, currencies, customers, orderItems, order
 import { getDb } from "../db";
 import { calculateProductSaleUpdate } from "./product-inventory";
 import { publicProcedure, router } from "../_core/trpc";
+import { DEFAULT_HOMEPAGE_CONTENT, parseHomepageContent } from "../../shared/homepage-content";
 
 const orderLineInput = z.union([
   z.object({ productId: z.number().int().positive(), quantity: z.number().int().min(1).max(99) }),
@@ -27,7 +28,7 @@ function money(value: number) { return (value / 100).toFixed(2); }
 
 async function publicSettings() {
   const db = await getDb();
-  if (!db) return { maintenance: true, maintenanceMessageAr: "قاعدة البيانات غير مهيأة بعد.", maintenanceMessageEn: "The store database is not configured yet.", storeName: "Valkor", descriptionAr: "", descriptionEn: "", whatsappNumber: "", avatarUrl: "", theme: "gold-light", defaultLanguage: "ar", defaultCurrency: "" };
+  if (!db) return { maintenance: true, maintenanceMessageAr: "قاعدة البيانات غير مهيأة بعد.", maintenanceMessageEn: "The store database is not configured yet.", storeName: "Valkor", descriptionAr: "", descriptionEn: "", whatsappNumber: "", avatarUrl: "", theme: "gold-light", defaultLanguage: "ar", defaultCurrency: "", homepageContent: DEFAULT_HOMEPAGE_CONTENT };
   const rows = await db.select().from(storeSettings);
   const map = Object.fromEntries(rows.map(row => [row.settingKey, row.value]));
   return {
@@ -42,6 +43,7 @@ async function publicSettings() {
     theme: map.default_theme ?? "gold-light",
     defaultLanguage: map.default_language ?? "ar",
     defaultCurrency: map.default_currency ?? "",
+    homepageContent: parseHomepageContent(map.homepage_content),
   };
 }
 

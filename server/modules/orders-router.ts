@@ -4,7 +4,8 @@ import { z } from "zod";
 import { customers, orderItems, orders, products, auditLogs } from "../../drizzle/schema";
 import { router } from "../_core/trpc";
 import { adminProcedure } from "./procedures";
-import { recordAudit, requireDb } from "./common";
+import { requireDb } from "./common";
+import { quantityAfterRestock, shouldRestockWhenDeletingOrder } from "./order-inventory";
 
 const orderStatus = z.enum(["new", "pending_payment", "paid", "in_progress", "delivered", "cancelled"]);
 export const ordersAdminRouter = router({
@@ -38,34 +39,38 @@ export const ordersAdminRouter = router({
   }),
   updateStatus: adminProcedure("orders.write").input(z.object({ id: z.number().int().positive(), status: orderStatus, paymentNote: z.string().max(1000).optional() })).mutation(async ({ input, ctx }) => {
     const db = await requireDb();
-    const [old] = await db.select().from(orders).where(eq(orders.id, input.id)).limit(1);
-    if (!old) throw new TRPCError({ code: "NOT_FOUND", message: "الطلب غير موجود" });
-    if (old.status === "cancelled" && input.status !== "cancelled") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "لا يمكن إعادة فتح طلب ملغى؛ أنشئ طلبًا جديدًا لتفادي خطأ المخزون" });
-    await db.update(orders).set({ status: input.status, paymentNote: input.paymentNote ?? old.paymentNote }).where(eq(orders.id, input.id));
-    if (input.status === "cancelled" && old.status !== "cancelled") {
-      const lines = await db.select().from(orderItems).where(eq(orderItems.orderId, old.id));
-      for (const line of lines) if (line.productId) {
-        const [product] = await db.select().from(products).where(eq(products.id, line.productId)).limit(1);
-        if (product?.trackInventory) await db.update(products).set({ quantity: product.quantity + line.quantity }).where(eq(products.id, product.id));
+    return db.transaction(async tx => {
+      const [old] = await tx.select().from(orders).where(eq(orders.id, input.id)).for("update").limit(1);
+      if (!old) throw new TRPCError({ code: "NOT_FOUND", message: "الطلب غير موجود" });
+      if (old.status === "cancelled" && input.status !== "cancelled") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "لا يمكن إعادة فتح طلب ملغى؛ أنشئ طلبًا جديدًا لتفادي خطأ المخزون" });
+      await tx.update(orders).set({ status: input.status, paymentNote: input.paymentNote ?? old.paymentNote }).where(eq(orders.id, input.id));
+      if (input.status === "cancelled" && old.status !== "cancelled") {
+        const lines = await tx.select().from(orderItems).where(eq(orderItems.orderId, old.id));
+        for (const line of lines) if (line.productId) {
+          const [product] = await tx.select().from(products).where(eq(products.id, line.productId)).for("update").limit(1);
+          if (product?.trackInventory) await tx.update(products).set({ quantity: quantityAfterRestock(product.quantity, line.quantity) }).where(eq(products.id, product.id));
+        }
       }
-    }
-    await recordAudit(ctx.admin, "status_change", "order", old.id, `${old.status} -> ${input.status}`);
-    return { success: true };
+      await tx.insert(auditLogs).values({ adminId: ctx.admin.id, adminUsername: ctx.admin.username, action: "status_change", entity: "order", entityId: String(old.id), details: `${old.status} -> ${input.status}` });
+      return { success: true };
+    });
   }),
   remove: adminProcedure("orders.delete").input(z.object({ id: z.number().int().positive(), confirmed: z.literal(true) })).mutation(async ({ input, ctx }) => {
     const db = await requireDb();
-    const [old] = await db.select().from(orders).where(eq(orders.id, input.id)).limit(1);
-    if (!old) return { success: true };
-    await recordAudit(ctx.admin, "delete", "order", old.id, `orderNo=${old.orderNo};status=${old.status}`);
-    if (old.status === "new" || old.status === "pending_payment") {
-      const lines = await db.select().from(orderItems).where(eq(orderItems.orderId, old.id));
-      for (const line of lines) if (line.productId) {
-        const [product] = await db.select().from(products).where(eq(products.id, line.productId)).limit(1);
-        if (product?.trackInventory) await db.update(products).set({ quantity: product.quantity + line.quantity }).where(eq(products.id, product.id));
+    return db.transaction(async tx => {
+      const [old] = await tx.select().from(orders).where(eq(orders.id, input.id)).for("update").limit(1);
+      if (!old) throw new TRPCError({ code: "NOT_FOUND", message: "الطلب غير موجود" });
+      if (shouldRestockWhenDeletingOrder(old.status)) {
+        const lines = await tx.select().from(orderItems).where(eq(orderItems.orderId, old.id));
+        for (const line of lines) if (line.productId) {
+          const [product] = await tx.select().from(products).where(eq(products.id, line.productId)).for("update").limit(1);
+          if (product?.trackInventory) await tx.update(products).set({ quantity: quantityAfterRestock(product.quantity, line.quantity) }).where(eq(products.id, product.id));
+        }
       }
-    }
-    await db.delete(orders).where(eq(orders.id, input.id));
-    return { success: true };
+      await tx.delete(orders).where(eq(orders.id, input.id));
+      await tx.insert(auditLogs).values({ adminId: ctx.admin.id, adminUsername: ctx.admin.username, action: "delete", entity: "order", entityId: String(old.id), details: `orderNo=${old.orderNo};status=${old.status}` });
+      return { success: true, orderNo: old.orderNo };
+    });
   }),
   stats: adminProcedure("dashboard.read").query(async () => {
     const db = await requireDb();

@@ -1,14 +1,21 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { homepageContentSchema, parseHomepageContent } from "../../shared/homepage-content";
 import { communityListings, currencies, socialLinks } from "../../drizzle/schema";
 import { router } from "../_core/trpc";
 import { adminProcedure } from "./procedures";
-import { readSettings, recordAudit, requireDb, saveSetting } from "./common";
+import { readSetting, readSettings, recordAudit, requireDb, saveSetting } from "./common";
 
 const themeIds = ["gold-light", "gold-dark", "electric-dark", "crimson-dark"] as const;
 const urlSchema = z.string().trim().url().max(1024).refine(value => value.startsWith("https://"), "يجب أن يبدأ الرابط بـ https://");
 export const settingsAdminRouter = router({
+  homepageContent: adminProcedure("homepage.write").query(async () => parseHomepageContent(await readSetting("homepage_content"))),
+  saveHomepageContent: adminProcedure("homepage.write").input(homepageContentSchema).mutation(async ({ input, ctx }) => {
+    await saveSetting("homepage_content", JSON.stringify(input), ctx.admin.id);
+    await recordAudit(ctx.admin, "update", "homepage_content", undefined, "copy, section visibility and order updated");
+    return { success: true };
+  }),
   all: adminProcedure("settings.write").query(async () => {
     const [settings, db] = await Promise.all([readSettings(), requireDb()]);
     const currencyRows = await db.select().from(currencies).orderBy(desc(currencies.isDefault), asc(currencies.name));

@@ -80,7 +80,7 @@ function normalizeProduct(product?: ProductRecord): ProductFormState {
     features: product.features ?? "",
     usageInstructions: product.usageInstructions ?? "",
     currencyCode: product.currencyCode ?? "JOD",
-    policyConfirmed: false,
+    policyConfirmed: product.published,
   };
 }
 

@@ -111,7 +111,7 @@ export const catalogAdminRouter = router({
     const stored = await storagePut(`valkor/products/${randomUUID()}.${extension}`, data, input.contentType);
     return { url: stored.url, key: stored.key };
   }),
-  listCategories: adminProcedure("products.read").query(async () => (await requireDb()).select().from(categories).orderBy(asc(categories.sortOrder))),
+  listCategories: adminProcedure("categories.read").query(async () => (await requireDb()).select().from(categories).orderBy(asc(categories.sortOrder))),
   saveCategory: adminProcedure("categories.write").input(z.object({ id: z.number().int().positive().optional(), slug: z.string().trim().min(2).max(100).regex(/^[a-z0-9-]+$/), nameAr: z.string().trim().min(2).max(160), nameEn: z.string().trim().min(2).max(160), navLabelAr: z.string().max(160).optional(), navLabelEn: z.string().max(160).optional(), sortOrder: z.number().int().min(0).max(10000), visible: z.boolean() })).mutation(async ({ input, ctx }) => {
     const db = await requireDb();
     const values = { slug: input.slug, nameAr: input.nameAr, nameEn: input.nameEn, navLabelAr: input.navLabelAr || null, navLabelEn: input.navLabelEn || null, sortOrder: input.sortOrder, visible: input.visible };

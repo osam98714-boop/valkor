@@ -8,6 +8,10 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { CartProvider } from "./contexts/CartContext";
 import StorePages from "./pages/StorePages";
 import AdminPages from "./pages/AdminPages";
+import AdminCategoriesPage from "./pages/AdminCategoriesPage";
+import AdminHomepageContent from "./pages/AdminHomepageContent";
+import AdminAuditPage from "./pages/AdminAuditPage";
+import { AdminOrderDetailPage, AdminOrdersPage } from "./pages/AdminOrderPages";
 import Home from "./pages/Home";
 
 function Router() {
@@ -24,9 +28,10 @@ function Router() {
     <Route path="/admin/products/new" component={AdminPages.ProductEditor} />
     <Route path="/admin/products/:id" component={AdminPages.ProductEditor} />
     <Route path="/admin/products" component={AdminPages.Products} />
-    <Route path="/admin/categories" component={AdminPages.Categories} />
-    <Route path="/admin/orders/:id" component={AdminPages.OrderDetail} />
-    <Route path="/admin/orders" component={AdminPages.Orders} />
+    <Route path="/admin/categories" component={AdminCategoriesPage} />
+    <Route path="/admin/homepage" component={AdminHomepageContent} />
+    <Route path="/admin/orders/:id" component={AdminOrderDetailPage} />
+    <Route path="/admin/orders" component={AdminOrdersPage} />
     <Route path="/admin/customers" component={AdminPages.Customers} />
     <Route path="/admin/communities" component={AdminPages.Communities} />
     <Route path="/admin/currencies" component={AdminPages.Currencies} />
@@ -34,7 +39,7 @@ function Router() {
     <Route path="/admin/theme" component={AdminPages.ThemeSettings} />
     <Route path="/admin/store" component={AdminPages.StoreSettings} />
     <Route path="/admin/admins" component={AdminPages.Admins} />
-    <Route path="/admin/audit" component={AdminPages.Audit} />
+    <Route path="/admin/audit" component={AdminAuditPage} />
     <Route path="/admin/settings" component={AdminPages.StoreSettings} />
     <Route path="/admin/maintenance" component={AdminPages.Maintenance} />
     <Route path="/admin" component={AdminPages.Dashboard} />
