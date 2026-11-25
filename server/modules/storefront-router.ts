@@ -1,9 +1,10 @@
 import { randomInt } from "node:crypto";
-import { and, asc, desc, eq, inArray, like, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, like, ne, or } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { categories, communityListings, currencies, customers, orderItems, orders, products, socialLinks, storeSettings } from "../../drizzle/schema";
 import { getDb } from "../db";
+import { calculateProductSaleUpdate } from "./product-inventory";
 import { publicProcedure, router } from "../_core/trpc";
 
 const orderLineInput = z.union([
@@ -57,7 +58,7 @@ export const storefrontRouter = router({
   }).optional()).query(async ({ input }) => {
     const db = await getDb();
     if (!db) return [];
-    const filters = [eq(products.published, true), eq(products.status, "available")];
+    const filters = [eq(products.published, true), eq(products.status, "available"), or(eq(products.trackInventory, false), gt(products.quantity, 0))!];
     if (input?.categorySlug) {
       const [category] = await db.select({ id: categories.id }).from(categories).where(and(eq(categories.slug, input.categorySlug), eq(categories.visible, true))).limit(1);
       if (!category) return [];
@@ -77,7 +78,7 @@ export const storefrontRouter = router({
   product: publicProcedure.input(z.object({ slug: z.string().min(1).max(180) })).query(async ({ input }) => {
     const db = await getDb();
     if (!db) return null;
-    const [product] = await db.select().from(products).where(and(eq(products.slug, input.slug), eq(products.published, true))).limit(1);
+    const [product] = await db.select().from(products).where(and(eq(products.slug, input.slug), eq(products.published, true), ne(products.status, "sold_out"), or(eq(products.trackInventory, false), gt(products.quantity, 0)))).limit(1);
     return product ?? null;
   }),
   currencies: publicProcedure.query(async () => {
@@ -145,7 +146,8 @@ export const storefrontRouter = router({
       await tx.insert(orderItems).values(prepared.map(line => ({ orderId: order.id, productId: line.product?.id ?? null, skuSnapshot: line.sku, nameSnapshot: line.name, specificationsSnapshot: line.specifications, quantity: line.quantity, unitPrice: money(line.unitCents), currencyCode: currency.code })));
       for (const line of prepared) if (line.product) {
         const product = line.product;
-        await tx.update(products).set({ ...(product.trackInventory ? { quantity: product.quantity - line.quantity } : {}), orderCount: product.orderCount + line.quantity }).where(eq(products.id, product.id));
+        const inventoryUpdate = calculateProductSaleUpdate(product, line.quantity);
+        await tx.update(products).set(inventoryUpdate).where(eq(products.id, product.id));
       }
       return { orderNo, total: money(totalCents), currency, prepared, phone };
     });
