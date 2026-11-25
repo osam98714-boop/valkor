@@ -1,18 +1,28 @@
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
 import { users } from "../drizzle/schema";
 type InsertUser = typeof users.$inferInsert;
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
+// Create the client lazily so local checks can run without a database URL.
+// Neon pooled URLs are supported; prepared statements are disabled for pooler compatibility.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _db = drizzle(process.env.DATABASE_URL);
-    } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      const client = postgres(process.env.DATABASE_URL, {
+        ssl: "require",
+        max: 1,
+        prepare: false,
+        connect_timeout: 10,
+        idle_timeout: 20,
+      });
+      _db = drizzle(client);
+    } catch {
+      // Never print a connection string or provider error that may contain connection details.
+      console.warn("[Database] Failed to initialize the PostgreSQL client.");
       _db = null;
     }
   }
@@ -68,19 +78,20 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.lastSignedIn = new Date();
     }
 
-    await db.insert(users).values(values).onDuplicateKeyUpdate({
+    await db.insert(users).values(values).onConflictDoUpdate({
+      target: users.openId,
       set: updateSet,
     });
-  } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
-    throw error;
+  } catch {
+    console.error("[Database] Failed to upsert user.");
+    throw new Error("Database user upsert failed");
   }
 }
 
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+    console.warn("[Database] Cannot get user: database not available.");
     return undefined;
   }
 
