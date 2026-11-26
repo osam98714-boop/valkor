@@ -9,6 +9,21 @@ import { readSetting, readSettings, recordAudit, requireDb, saveSetting } from "
 
 const themeIds = ["gold-light", "gold-dark", "electric-dark", "crimson-dark"] as const;
 const urlSchema = z.string().trim().url().max(1024).refine(value => value.startsWith("https://"), "يجب أن يبدأ الرابط بـ https://");
+
+export function isValidStoreAvatarUrl(value: string): boolean {
+  if (value === "") return true;
+  if (value.startsWith("/manus-storage/")) return value.length <= 1024;
+  if (value.length > 1024) return false;
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "i.ibb.co" &&
+      url.username === "" && url.password === "" && url.port === "" && url.pathname !== "/";
+  } catch {
+    return false;
+  }
+}
+
 export const settingsAdminRouter = router({
   homepageContent: adminProcedure("homepage.write").query(async () => parseHomepageContent(await readSetting("homepage_content"))),
   saveHomepageContent: adminProcedure("homepage.write").input(homepageContentSchema).mutation(async ({ input, ctx }) => {
@@ -27,7 +42,7 @@ export const settingsAdminRouter = router({
       store_description_ar: value => value.length <= 2000,
       store_description_en: value => value.length <= 2000,
       whatsapp_number: value => /^[+\d\s().-]{6,32}$/.test(value),
-      avatar_url: value => value === "" || (value.startsWith("/manus-storage/") && value.length <= 1024),
+      avatar_url: isValidStoreAvatarUrl,
       default_language: value => ["ar", "en"].includes(value),
       default_theme: value => (themeIds as readonly string[]).includes(value),
       maintenance_message_ar: value => value.length <= 1200,
